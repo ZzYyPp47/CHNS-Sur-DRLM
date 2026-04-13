@@ -1,0 +1,32 @@
+# IDE
+.idea/
+.vscode/
+
+# 编译文件
+__pycache__/
+*.so
+*.dll
+*.pyd
+
+# 数据文件
+*.h5
+*.npy
+*.pkl
+*.joblib
+
+# 模型文件
+*.pth
+*.pt
+*.onnx
+
+# 压缩包
+*.zip
+*.tar
+*.gz
+
+# 其他文件
+.DS_Store
+*.vtu
+*.pvd
+*.png
+.cache/
