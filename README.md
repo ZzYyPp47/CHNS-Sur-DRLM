@@ -15,12 +15,12 @@ You can follow the steps below to run this program:
 - Temporal accuracy test:
 
 ```bash
-python ex_time_accuracy.py
+OMP_NUM_THREADS=1 python ex_time_accuracy.py
 ```
 
 - Colliding under the shear flow with different surfactant concentrations:
 
 ```bash
-python ex_two_circles.py
+OMP_NUM_THREADS=1 python ex_two_circles.py
 ```
 
