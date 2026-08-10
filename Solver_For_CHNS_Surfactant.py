@@ -320,7 +320,7 @@ def Solver_CHNS_Surfactant_1st(pde, time_setting, up_func_space, phimu_func_spac
     rho_solver = LinearSolver(rho_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_rho)
 
     # default bc is no-slip condition
-    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or bc_u0
+    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or None
 
     for step in range(num_steps):
         next_t = start_T + (step + 1) * dt
@@ -612,7 +612,7 @@ def Solver_CHNS_Surfactant_2nd(pde, time_setting, up_func_space, phimu_func_spac
     rho_solver = LinearSolver(rho_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_rho)
 
     # default bc is no-slip condition
-    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or bc_u0
+    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or None
 
     # step solver
     if "vtksave" in options and options["vtksave"]:
