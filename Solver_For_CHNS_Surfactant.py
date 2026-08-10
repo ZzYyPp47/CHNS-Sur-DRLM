@@ -123,7 +123,7 @@ def func_dlambda_int_F_non(pde, phi_1, phi_2, rho_1, rho_2, _lambda):
     q_val = func_q(pde, phi, rho)  # δF_non/δρ
     return assemble((h_val * phi_2 + q_val * rho_2) * dx)
 
-def newton_armijo(func, d_func, init_guess=0, tol=1e-8, max_iter=300, c=1e-4, rho=0.5):
+def newton_armijo(func, d_func, init_guess=0, tol=1e-8, max_iter=10, c=1e-4, rho=0.5):
     x = init_guess
     for ii in range(max_iter):
         f_val = func(x)
@@ -135,13 +135,13 @@ def newton_armijo(func, d_func, init_guess=0, tol=1e-8, max_iter=300, c=1e-4, rh
         d = -f_val / df
         alpha = 1.0
         # 回溯线搜索
-        for jj in range(20):  # 最多尝试20次缩小
+        for jj in range(10):  # 最多尝试10次缩小
             x_new = x + alpha * d
             if abs(func(x_new)) <= (1 - c * alpha) * abs(f_val):
                 break
             alpha *= rho
         x = x + alpha * d
-        # print(f"iteration {ii+1}: guess = {x}, search iter = {jj + 1}.")
+        # print(f"\riteration {ii+1}: guess = {x}, search iter = {jj + 1}.", end="\n",flush=True)
     return x
 
 def solve_quadratic(A,B,C):
@@ -309,8 +309,8 @@ def Solver_CHNS_Surfactant_1st(pde, time_setting, up_func_space, phimu_func_spac
     if "energyflag" in options and options["energyflag"]:
         os.makedirs("data", exist_ok=True)
         with open(f"data/{options["savename"]}.txt", 'w') as f:
-            f.write(f"t,phi_mass,rho_mass,phi_diffnorm,rho_diffnorm,lambda^2,zeta^2,energy\n")
-            f.write(f"{float(pde.t)},{assemble(inner(phi_now,1) * dx)},{assemble(inner(rho_now, 1) * dx)},nan,nan,{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_now, rho_now, u_now)}\n")
+            f.write(f"t,kinetic,phi_mass,rho_mass,phi_diffnorm,rho_diffnorm,nabla_phi_diffnorm,nabla_rho_diffnorm,lambda^2,zeta^2,energy\n")
+            f.write(f"{float(pde.t)},{norm(u_now) ** 2 / 2},{assemble(inner(phi_now,1) * dx)},{assemble(inner(rho_now, 1) * dx)},nan,nan,nan,nan,{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_now, rho_now, u_now)}\n")
 
     phi_A = assemble(equa_phi_L1 + equa_phi_L2)
     rho_A = assemble(equa_rho_L1 + equa_rho_L2)
@@ -319,7 +319,8 @@ def Solver_CHNS_Surfactant_1st(pde, time_setting, up_func_space, phimu_func_spac
     phi_solver = LinearSolver(phi_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_phi)
     rho_solver = LinearSolver(rho_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_rho)
 
-    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or None
+    # default bc is no-slip condition
+    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or bc_u0
 
     for step in range(num_steps):
         next_t = start_T + (step + 1) * dt
@@ -369,7 +370,7 @@ def Solver_CHNS_Surfactant_1st(pde, time_setting, up_func_space, phimu_func_spac
 
         A_zeta = pde.kappa_zeta + 0.5 * assemble(inner(u_next_2, u_next_2) * dx) + dt * (1 / pde.Re) * assemble(inner(grad(u_next_2),grad(u_next_2)) * dx)
         B_zeta = - assemble(dot(u_next_1 - u_now, u_next_2) * dx) - dt * assemble((lambda_next * dot(phi_next * grad(mu_next) + rho_next * grad(omega_next),u_next_2) + dot(u_next_1,dot(grad(u_now), u_now))) * dx)
-        C_zeta = - pde.kappa_zeta * zeta_now ** 2 - 0.5 * assemble(inner(u_next_1 - u_now, u_next_1 - u_now) * dx) - dt * lambda_next * assemble((div(u_now * phi_now) * mu_next + dot(u_next_1, phi_next * grad(mu_next))) * dx) - dt * lambda_next * assemble((div(u_now * rho_now) * omega_now + dot(u_next_1, rho_next * grad(omega_next))) * dx)
+        C_zeta = - pde.kappa_zeta * zeta_now ** 2 - 0.5 * assemble(inner(u_next_1 - u_now, u_next_1 - u_now) * dx) - dt * lambda_next * assemble((div(u_now * phi_now) * mu_next + dot(u_next_1, phi_next * grad(mu_next))) * dx) - dt * lambda_next * assemble((div(u_now * rho_now) * omega_next + dot(u_next_1, rho_next * grad(omega_next))) * dx)
         zeta = newton_armijo(
             func = lambda zeta: float(Constant(A_zeta * zeta ** 2 + B_zeta * zeta + C_zeta)),
             d_func = lambda zeta: float(Constant(2 * A_zeta * zeta + B_zeta)),
@@ -388,7 +389,7 @@ def Solver_CHNS_Surfactant_1st(pde, time_setting, up_func_space, phimu_func_spac
 
         if "energyflag" in options and options["energyflag"]:
             with open(f"data/{options["savename"]}.txt", 'a') as f:
-                f.write(f"{float(pde.t)},{assemble(inner(phi_next,1) * dx)},{assemble(inner(rho_next, 1) * dx)},{float((pde.S_phi / pde.epsilon ** 2 + pde.gamma_1) * norm(phi_next - phi_now) ** 2)},{float((pde.S_rho / pde.eta ** 2 + pde.gamma_2) * norm(rho_next - rho_now) ** 2)},{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_next, rho_next, u_next)}\n")
+                f.write(f"{float(pde.t)},{norm(u_now) ** 2 / 2},{assemble(inner(phi_next,1) * dx)},{assemble(inner(rho_next, 1) * dx)},{float((pde.S_phi / pde.epsilon ** 2) * norm(phi_next - phi_now) ** 2)},{float((pde.S_rho / pde.eta ** 2) * norm(rho_next - rho_now) ** 2)},{float(pde.gamma_1 * norm(grad(phi_next - phi_now)) ** 2)},{float(pde.gamma_2 * norm(grad(rho_next - rho_now)) ** 2)},{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_next, rho_next, u_next)}\n")
 
         # prepare for next step
         up_now.assign(up_next)
@@ -610,6 +611,9 @@ def Solver_CHNS_Surfactant_2nd(pde, time_setting, up_func_space, phimu_func_spac
     phi_solver = LinearSolver(phi_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_phi)
     rho_solver = LinearSolver(rho_A, solver_parameters=PHI_SOLVER_PARAMS, nullspace=nullspace_rho)
 
+    # default bc is no-slip condition
+    bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or bc_u0
+
     # step solver
     if "vtksave" in options and options["vtksave"]:
         phi, mu = phimu_now.subfunctions
@@ -665,7 +669,6 @@ def Solver_CHNS_Surfactant_2nd(pde, time_setting, up_func_space, phimu_func_spac
         # rhoomega_next.sub(1).interpolate(pde.exact_omega) # debug
 
         ##  solve step 2 (start):
-        bcs = [bc for bc in [bc_u_up, bc_u_down, bc_u_left, bc_u_right, bc_u_all] if bc is not None] or None
         solve(equa_ns_L == equa_ns_R1, up_next_1, bcs=bcs, nullspace=ns_nullspace, solver_parameters=NS_SOLVER_PARAMS)
         solve(equa_ns_L == equa_ns_R2, up_next_2, bcs=bc_u0, nullspace=ns_nullspace, solver_parameters=NS_SOLVER_PARAMS)
 
@@ -705,7 +708,7 @@ def Solver_CHNS_Surfactant_2nd(pde, time_setting, up_func_space, phimu_func_spac
             outfile.write(phi, mu, rho, omega, u, p)
         if "energyflag" in options and options["energyflag"]:
             with open(f"data/{options["savename"]}.txt", 'a') as f:
-                f.write(f"{float(pde.t)},{assemble(inner(phi_now, 1) * dx)},{assemble(inner(rho_now, 1) * dx)},{float((pde.S_phi / pde.epsilon ** 2 + pde.gamma_1) * norm(phi_now - phi_prev) ** 2)},{float((pde.S_rho / pde.eta ** 2 + pde.gamma_2) * norm(rho_now - rho_prev) ** 2)},{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_now, rho_now, u_now)}\n")
+                f.write(f"{float(pde.t)},{norm(u_now) ** 2 / 2},{assemble(inner(phi_next,1) * dx)},{assemble(inner(rho_next, 1) * dx)},{float((pde.S_phi / pde.epsilon ** 2) * norm(phi_next - phi_now) ** 2)},{float((pde.S_rho / pde.eta ** 2) * norm(rho_next - rho_now) ** 2)},{float(pde.gamma_1 * norm(grad(phi_next - phi_now)) ** 2)},{float(pde.gamma_2 * norm(grad(rho_next - rho_now)) ** 2)},{float(lambda_now) ** 2},{float(zeta_now) ** 2},{cal_energy(pde, phi_next, rho_next, u_next)}\n")
 
         # 只有rank 0打印进度
         if rank == 0:
